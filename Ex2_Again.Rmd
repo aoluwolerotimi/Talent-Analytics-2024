@@ -1,0 +1,52 @@
+---
+title: "Ex 2 - Take 2"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading Libraries
+
+```{r libraries}
+library(arrow)
+library(tidyverse)
+library(gender)
+library(remotes)
+library(wru)
+library(dplyr)
+library(zoo)
+library(lubridate)
+```
+
+## Loading Data
+
+```{r data}
+data_path <- "/Users/aoluwolerotimi/Datasets/"
+applications_coded <- read_feather(paste0(data_path,"app_data_starter_coded.feather"))
+View(applications_coded)
+```
+
+## Creating Panel Datasets
+
+```{r transformation-1}
+colnames(applications_coded)
+sapply(applications_coded, class)
+applications_coded$quarter <- paste0(year(applications_coded$filing_date), "_Q", quarter(applications_coded$filing_date))
+sapply(applications_coded, class)
+
+```
+
+```{r transformation-2}
+panel_dataset <- applications_coded %>%
+  group_by(examiner_id, quarter) %>%
+  summarize(
+    record_count = n()  # Count of records for each group
+  ) %>%
+  ungroup()  # Remove the grouping for further manipulations
+
+print(panel_dataset)
+```
+
+```{r transformation-3})

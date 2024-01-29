@@ -133,19 +133,20 @@ applications_coded <- read_feather(paste0(data_path,"app_data_starter_coded.feat
 View(applications_coded)
 
 colnames(applications_coded)
+sapply(applications_coded, class)
 
 library(dplyr)
 library(zoo)
 
 # ATTEMPT 1 - NOT WORKING
-# applications_coded$earliest_quarter <- paste0(year(ymd(applications_coded$earliest_date.x)), "-", quarter(ymd(applications_coded$earliest_date.x)))
-# applications_coded$latest_quarter <- paste0(year(ymd(applications_coded$latest_date.x)), "-", quarter(ymd(applications_coded$latest_date.x)))
+applications_coded$earliest_quarter <- paste0(year(ymd(applications_coded$earliest_date.x)), "-", quarter(ymd(applications_coded$earliest_date.x)))
+applications_coded$latest_quarter <- paste0(year(ymd(applications_coded$latest_date.x)), "-", quarter(ymd(applications_coded$latest_date.x)))
 
-# Create a new dataframe to store panel data
-# panel_data <- data.frame()
-# 
-# View(examiner_data)
-# sapply(examiner_data, class)
+#Create a new dataframe to store panel data
+panel_data <- data.frame()
+
+View(examiner_data)
+sapply(examiner_data, class)
 
 
 # partially executed loop
@@ -154,7 +155,7 @@ library(zoo)
 #   examiner_data <- applications_coded[applications_coded$examiner_id == examiner_id, ]
 #   start_quarter <- examiner_data$earliest_quarter
 #   end_quarter <- examiner_data$latest_quarter
-#   
+#
 #   # Create sequence of quarters
 #   quarters <- seq(from = as.yearqtr(start_quarter), to = as.yearqtr(end_quarter), by = "quarter")
 # }
@@ -162,7 +163,7 @@ library(zoo)
 # cleaning up from that attempt
 # rm(panel_data)
 # rm(examiner_data)
-# 
+#
 # applications_coded = subset(applications_coded, select = -c(earliest_quarter,latest_quarter))
 
 # ATTEMPT 2 - ALSO NOT WORKING

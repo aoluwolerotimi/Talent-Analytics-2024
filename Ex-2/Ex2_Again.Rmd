@@ -1,0 +1,67 @@
+---
+title: "Ex 2 - Take 2"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading Libraries
+
+```{r libraries}
+library(arrow)
+library(tidyverse)
+library(dplyr)
+library(lubridate)
+```
+
+## Loading Data
+
+```{r data}
+data_path <- "/Users/aoluwolerotimi/Datasets/"
+applications <- read_feather(paste0(data_path,"app_data_starter_coded.feather"))
+View(applications)
+```
+
+## Creating Panel Datasets
+
+```{r panel}
+# Creating quarter variable
+# applications$quarter <- paste0(year(applications$filing_date), "/", quarter(applications$filing_date))
+
+# Aggregate applications by quarter and examiner to generate counts per examiner per quarter
+# applications <- applications %>%
+#   group_by(quarter, examiner_id) %>%
+#   mutate(new_applications = n_distinct(application_number)) %>%
+#   ungroup()
+
+# applications <- applications %>%
+#   group_by(quarter, examiner_id) %>%
+#   mutate(iss_applications = sum(disposal_type == "ISS" & !duplicated(application_number)))
+# 
+# applications <- applications %>%
+#   group_by(quarter, examiner_id) %>%
+#   mutate(abn_applications = sum(disposal_type == "ABN" & !duplicated(application_number)))
+# 
+# applications <- applications %>%
+#   group_by(quarter, examiner_id) %>%
+#   mutate(pen_applications = sum(disposal_type == "PEND" & !duplicated(application_number)))
+
+# applications <- applications %>% ungroup()
+# 
+# applications <- applications %>%
+#   group_by(quarter,examiner_art_unit) %>%
+#   mutate(examiner_art_unit_num =  n_distinct(examiner_id))%>%
+#   ungroup()
+
+# applications <- applications %>%
+#   rename(art_unit_hc = examiner_art_unit_num)
+
+
+
+```
+
+```{r panel2}
+sapply(applications, class)
+```

@@ -39,17 +39,17 @@ View(applications)
 # applications <- applications %>%
 #   group_by(quarter, examiner_id) %>%
 #   mutate(iss_applications = sum(disposal_type == "ISS" & !duplicated(application_number)))
-# 
+#
 # applications <- applications %>%
 #   group_by(quarter, examiner_id) %>%
 #   mutate(abn_applications = sum(disposal_type == "ABN" & !duplicated(application_number)))
-# 
+#
 # applications <- applications %>%
 #   group_by(quarter, examiner_id) %>%
 #   mutate(pen_applications = sum(disposal_type == "PEND" & !duplicated(application_number)))
 
 # applications <- applications %>% ungroup()
-# 
+#
 # applications <- applications %>%
 #   group_by(quarter,examiner_art_unit) %>%
 #   mutate(examiner_art_unit_num =  n_distinct(examiner_id))%>%
@@ -58,10 +58,124 @@ View(applications)
 # applications <- applications %>%
 #   rename(art_unit_hc = examiner_art_unit_num)
 
-
+# applications <- applications %>%
+#   group_by(quarter, examiner_art_unit) %>%
+#   mutate(women_in_art_unit  = sum(gender.y == "female" & !duplicated(examiner_id)))
+# # lot of NA in women in art unit, not really sure why
+#
+# applications <- applications %>%
+#   group_by(quarter, examiner_art_unit) %>%
+#   mutate(Asian_in_art_unit  = sum(race.y == "Asian" & !duplicated(examiner_id)))
+#
+# applications <- applications %>%
+#   group_by(quarter, examiner_art_unit) %>%
+#   mutate(Black_in_art_unit  = sum(race.y == "black" & !duplicated(examiner_id)))
+#
+# applications <- applications %>%
+#   group_by(quarter, examiner_art_unit) %>%
+#   mutate(Hispanic_in_art_unit  = sum(race.y == "Hispanic" & !duplicated(examiner_id)))
+#
+# applications <- applications %>%
+#   group_by(quarter, examiner_art_unit) %>%
+#   mutate(Other_in_art_unit  = sum(race.y == "other" & !duplicated(examiner_id)))
+#
+# applications <- applications %>%
+#   group_by(quarter, examiner_art_unit) %>%
+#   mutate(White_in_art_unit  = sum(race.y == "white" & !duplicated(examiner_id)))
 
 ```
 
 ```{r panel2}
-sapply(applications, class)
+# Subsetting data to only include the columns we need
+
+# sort by examiner_id and quarter
+
+# applications <- applications %>%
+#   ungroup() %>%
+#   arrange(examiner_id, quarter)
+
+# write_feather(applications, paste0(data_path,"app_data_coded_plus.feather")) # just in case i need to come back to this stage
+
+# applications_selected <- applications %>%
+#   select(
+#     examiner_id,
+#     quarter,
+#     examiner_name_first,
+#     examiner_name_middle,
+#     examiner_name_last,
+#     tc,
+#     new_applications,
+#     iss_applications,
+#     abn_applications,
+#     pen_applications,
+#     examiner_art_unit,
+#     art_unit_hc,
+#     women_in_art_unit,
+#     Asian_in_art_unit,
+#     Black_in_art_unit,
+#     Other_in_art_unit,
+#     White_in_art_unit,
+#     ends_with(".x")  # Select columns that end with '_x'
+#   ) %>%
+#   rename_with(~ str_remove(., ".x"), ends_with(".x"))  # Remove the '_x' suffix
+
+# View(applications_selected)
+# applications_selected <- applications_selected %>%
+#   select(-examiner_name_middle)
+
+
+```
+
+## Creating Indicators
+```{r separation_indicator}
+# SEPARATION INDICATOR
+# need to find each examiner's max quarter
+
+# applications_selected %>%
+#   group_by(examiner_id) %>%
+#   mutate(max_quarter = max(quarter))
+
+# and need to find overall max quarter in the dataset
+
+# applications_selected %>%
+#   group_by(quarter) %>%
+#   summarise(n = n_distinct(examiner_id)) %>%
+#   arrange(desc(quarter)) %>% head(5)
+
+# 2017/2 is the max quarter in the dataset. but only 68 left over there so using 2017/1 instead
+# could have been a data collection issue bc that's a huge drop
+
+# overall_max_quarter <- "2017/1"
+
+# applications_selected <- applications_selected %>%
+#   group_by(examiner_id) %>%
+#   mutate(max_quarter = max(quarter, na.rm = TRUE)) %>%
+#   ungroup() %>%
+#   mutate(separation_indicator = case_when(
+#     quarter < max_quarter ~ 0,
+#     quarter == max_quarter & quarter < overall_max_quarter ~ 1,
+#     TRUE ~ 0
+#   ))
+
+# print(unique(applications_selected$separation_indicator)) confirming some actually populated as 1
+
+```
+
+```{r AUmove_indicator}
+# applications_selected <- applications_selected %>%
+#   group_by(examiner_id) %>%
+#   arrange(examiner_id, quarter) %>%
+#   mutate(au_move = if_else(examiner_art_unit != lag(examiner_art_unit, default = first(examiner_art_unit)), 1, 0)) %>%
+#   ungroup()
+```
+
+```{r cleanup}
+# applications_selected %>%
+#   summarise_all(~ sum(is.na(.)))
+# a bunch of examiner IDs are N/A but the quarter and first and last name are not so that is WEIRD
+
+# write_feather(applications_selected, paste0(data_path,"app_data_w_indicators.feather"))
+
+# glimpse(applications_selected)
+
 ```

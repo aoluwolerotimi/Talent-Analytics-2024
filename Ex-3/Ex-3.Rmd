@@ -117,8 +117,8 @@ print(dup_example)
 
 ```{r}
 # Usual logistic regression methods. No specific consideration to being panel data
-# library(caret)
-# library(nnet) 
+library(caret)
+library(nnet)
 
 # # Convert 'race' to a factor since it's categorical
 # examiners$race <- as.factor(examiners$race)
@@ -200,6 +200,7 @@ trainIndex <- createDataPartition(reg_dataset$separation_indicator, p = .8,
                                   times = 1)
 trainData <- reg_dataset[trainIndex, ]
 testData <- reg_dataset[-trainIndex, ]
+## SHOW THAT TRAIN AND TEST SPLITS ARE REPRESENTATIVE FOR TARGET
 ```
 
 ```{r}
@@ -215,10 +216,10 @@ summary(model3)
 # trying without issued applications variable. looks like no difference
 
 # Build the model - logistic regression
-model4 <- glm(separation_indicator ~ race.Asian + race.black + race.Hispanic + race.other + tenure_days + new_applications + abn_applications + pen_applications + art_unit_hc + Asian_in_art_unit + Black_in_art_unit + White_in_art_unit + Other_in_art_unit, family = binomial, data = trainData)
-
-# Summary of the model
-summary(model4)
+# model4 <- glm(separation_indicator ~ race.Asian + race.black + race.Hispanic + race.other + tenure_days + new_applications + abn_applications + pen_applications + art_unit_hc + Asian_in_art_unit + Black_in_art_unit + White_in_art_unit + Other_in_art_unit, family = binomial, data = trainData)
+# 
+# # Summary of the model
+# summary(model4)
 ```
 
 ```{r}

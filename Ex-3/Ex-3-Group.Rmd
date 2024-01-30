@@ -1,0 +1,127 @@
+---
+title: "E3"
+output: pdf_document
+date: "2024-01-29"
+---
+
+```{r}
+#### Load the lib and data
+library(tidyverse)
+library(lubridate)
+library(arrow)
+```
+
+
+```{r}
+names(panel_df)
+```
+Prediction
+```{r}
+library(dplyr)
+library(ggplot2)
+library(pROC)
+library(caret)
+
+```
+
+
+```{r}
+## Insert code for loading the processed dataset here. 
+
+data_path <- "/Users/aoluwolerotimi/Datasets/"
+panel_df <- read_feather(paste0(data_path,"<boyan's file>.feather"))
+
+# Converting race into dummy variables 
+# Convert 'race' to a factor since it's categorical
+panel_df$race <- as.factor(panel_df$race)
+
+# Creating dummy variables for 'race'
+panel_df <- dummyVars("~ race", data = panel_df) %>%
+             predict(newdata = panel_df) %>%
+             as.data.frame() %>%
+             bind_cols(panel_df, .)
+
+#Splitting the Data
+set.seed(123) # for reproducibility & ensuring representativeness of classes in both sets 
+splitIndex <- createDataPartition(panel_df$separation_indicator, p = .70, list = FALSE, times = 1)
+train_data <- panel_df[splitIndex,]
+test_data <- panel_df[-splitIndex,]
+```
+
+
+```{r}
+#Building the Logistic Regression Model
+model <- glm(separation_indicator ~ new_applications + ISSUED_applications + total_abn_applications + 
+             total_PEN_applications + tenure_days +  Asian_in_art_unit + 
+             Black_in_art_unit + Other_in_art_unit + White_in_art_unit + 
+             au_move_indicator + race, 
+             data = train_data, family = "binomial")
+
+
+
+# gender and women in art unit excluded due to missing data (previously imputed 0 for N/A in Women in Art unit but realized that wasn't a good approach since the reason it was N/A was because the associated gender data for women was missing )
+
+
+```
+```{r}
+summary(model)
+```
+```{r}
+
+```
+
+```{r}
+#Evaluating the Model
+# Predicting on the test set
+predictions <- predict(model, test_data, type = "response")
+
+# Binarize predictions based on a 0.5 cutoff 
+binarized_predictions <- ifelse(predictions > 0.5, 1, 0)
+```
+
+```{r}
+# Generating the ROC curve data
+roc_data <- roc(test_data$separation_indicator, binarized_predictions)
+
+# Plotting ROC Curve
+plot(roc_data, main="ROC Curve")
+
+```
+
+
+```{r}
+# Load the ROCR library
+install.packages("ROCR")
+library(ROCR)
+
+```
+
+```{r}
+# Predicting on the test set with probabilities
+panel_df_pHat = predict(model, test_data, type = 'response')
+
+# Check for NAs in predictions and handle them
+if (any(is.na(panel_df_pHat))) {
+  # Handle NAs - Exclude NAs
+  valid_indices <- which(!is.na(panel_df_pHat))
+  panel_df_pHat <- panel_df_pHat[valid_indices]
+  actual_outcomes <- test_data$separation_indicator[valid_indices]
+} else {
+  actual_outcomes <- test_data$separation_indicator
+}
+
+# Ensure that predictions and actual outcomes are in the correct format
+panel_df_pHat <- as.numeric(panel_df_pHat)
+actual_outcomes <- as.numeric(actual_outcomes)
+
+# Creating a prediction object with actual outcomes and predicted probabilities
+panel_df_prediction = prediction(panel_df_pHat, actual_outcomes)
+
+# Evaluating performance for tpr and fpr
+panel_df_performance = performance(panel_df_prediction, "tpr", "fpr")
+
+# Plotting the ROC Curve
+plot(panel_df_performance, main = "ROC Curve", colorize = TRUE)
+
+```
+

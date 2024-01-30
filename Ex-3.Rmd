@@ -1,0 +1,261 @@
+---
+title: "Ex-3"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading Data and Importing Libraries
+
+```{r}
+library(arrow)
+library(tidyverse)
+library(dplyr)
+library(lubridate)
+library(plm)
+```
+
+```{r}
+data_path <- "/Users/aoluwolerotimi/Datasets/"
+applications <- read_feather(paste0(data_path,"app_data_w_indicators.feather"))
+View(applications)
+```
+
+## Creating Panel Data Frame
+
+```{r}
+examiners <- pdata.frame(applications, index = c("examiner_id", "quarter"), drop.index = FALSE)
+```
+```{r}
+# Duplicates and N/A found in data frame, dealing with N/A first
+
+# applications %>%
+#   summarise_all(~ sum(is.na(.)))
+# 9229 N/As in examiner_id. will need to go back and investigate, but for now focusing on learning objective of creating panel data regressions
+# so I will drop those rows
+
+applications <- applications[!is.na(applications$examiner_id) & !is.na(applications$quarter), ]
+examiners <- pdata.frame(applications, index = c("examiner_id", "quarter"), drop.index = FALSE)
+```
+
+```{r}
+# Now dealing with duplicates
+
+# dup_example <- applications[applications$examiner_id == 59030 & applications$quarter == "2009/3", ]
+# print(dup_example)
+```
+
+```{r}
+# To avoid data loss on rows which may hold a positive case of AU move or seperation, conditionally removing duplicates at first
+cleaned_applications <- applications %>%
+  group_by(examiner_id, quarter) %>%
+  arrange(desc(separation_indicator), desc(au_move)) %>% # Prioritize rows with 1s
+  filter(if(any(separation_indicator == 1 | au_move == 1)) {
+           separation_indicator == 1 | au_move == 1
+         } else {
+           row_number() == 1
+         }) %>%
+  ungroup()
+```
+
+```{r}
+examiners <- pdata.frame(cleaned_applications, index = c("examiner_id", "quarter"), drop.index = FALSE)
+table(index(examiners), useNA = "ifany")
+```
+
+```{r}
+# dup_example <- applications[applications$examiner_id == 59054 & applications$quarter == "2001/2", ]
+# print(dup_example)
+# hmm, for the same quarter seeing AU move of 0 and AU move of 1. definitely have to revisit process of creating panel dataset in Ex 2
+
+# dup_example <- applications[applications$examiner_id == 59054 & applications$quarter == "2002/1", ] # not the right example
+# print(dup_example)
+
+# Okay, for the same quarter, there are different art units recorded. to keep moving with the exercise, I will focus just on the separation_indicator
+
+# accidentally overrwote the example that was here, but it was a case of the same quarter having different separation_indicator values
+
+```
+
+```{r}
+cleaned_applications <- applications %>%
+  select(-au_move) %>% # Drop the au_move column
+  group_by(examiner_id, quarter) %>%
+  arrange(desc(separation_indicator)) %>% # Prioritize rows with separation_indicator = 1
+  filter(if (any(separation_indicator == 1)) {
+           row_number() == which(separation_indicator == 1)[1] # Keep the first row with separation_indicator = 1
+         } else {
+           row_number() == 1 # If no 1s, keep the first row
+         }) %>%
+  ungroup()
+```
+
+```{r}
+# examiners <- pdata.frame(cleaned_applications, index = c("examiner_id", "quarter"), drop.index = FALSE)
+# table(index(examiners), useNA = "ifany")
+
+dup_example <- applications[applications$examiner_id == 59054 & applications$quarter%in% c("2001/3"), ]
+print(dup_example)
+
+# idk man, the table is saying there's duplicates but i see only one row for 59054 and 2001/3 and not getting the previous duplicate erorr
+# message upon creation of the panel dataset. moving on
+```
+
+```{r}
+#colnames(examiners)
+# View(examiners)
+
+# examiners %>%
+#   summarise_all(~ sum(is.na(.)))
+# gender and women in art unit had a bunch of NA values so excluding them for this exercise
+
+# print(unique(examiners$examiner_art_unit)) # excluding this for now due to high cardinality. 
+# later, worth checking if they can be grouped according to some criteria
+```
+
+```{r}
+# Usual logistic regression methods. No specific consideration to being panel data
+# library(caret)
+# library(nnet) 
+
+# # Convert 'race' to a factor since it's categorical
+# examiners$race <- as.factor(examiners$race)
+# 
+# # Creating dummy variables for 'race'
+# examiners <- dummyVars("~ race", data = examiners) %>% 
+#              predict(newdata = examiners) %>% 
+#              as.data.frame() %>%
+#              bind_cols(examiners, .)
+
+# Converting separation_indicator to a factor
+# examiners$separation_indicator <- as.factor(examiners$separation_indicator)
+```
+
+
+```{r}
+# Splitting the data into training and testing sets
+set.seed(123) # for reproducibility
+trainIndex <- createDataPartition(examiners$separation_indicator, p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+trainData <- examiners[trainIndex, ]
+testData <- examiners[-trainIndex, ]
+```
+
+```{r}
+# Build the model - logistic regression
+model1 <- glm(separation_indicator ~ race.Asian + race.black + race.Hispanic + race.other + tenure_days + new_applications + abn_applications + pen_applications + iss_applications + art_unit_hc + Asian_in_art_unit + Black_in_art_unit + White_in_art_unit + Other_in_art_unit, family = binomial, data = trainData)
+
+# Summary of the model
+summary(model1)
+
+# getting strange results around application count variables. this is reasonable, there's probably multicollinearity there
+```
+
+```{r}
+# Trying for a fixed effects model
+# plm package requires the binary variables to be numeric rather than as factors
+trainData$race.Asian <- as.numeric(trainData$race.Asian)
+trainData$race.black <- as.numeric(trainData$race.black)
+trainData$race.Hispanic <- as.numeric(trainData$race.Hispanic)
+trainData$race.other <- as.numeric(trainData$race.other)
+trainData$separation_indicator <- as.numeric(trainData$separation_indicator)
+
+model2 <- plm(separation_indicator ~ race.Asian + race.black + race.Hispanic + race.other + tenure_days + new_applications + abn_applications + pen_applications + iss_applications + art_unit_hc + Asian_in_art_unit + Black_in_art_unit + White_in_art_unit + Other_in_art_unit, 
+             data = trainData, model = "within", family = binomial())
+
+# Summary of the model
+summary(model2)
+
+# this unfortunately isn't useful to the remaining steps. because the train and test split was without consideration for being panel data
+```
+
+### Collapsed Version of Model
+```{r}
+# Filter the dataset to keep only the rows where 'quarter' equals 'max_quarter'
+reg_dataset <- cleaned_applications %>%
+  group_by(examiner_id) %>%
+  filter(quarter == max_quarter) %>%
+  ungroup()
+```
+
+```{r}
+# Convert 'race' to a factor since it's categorical
+reg_dataset$race <- as.factor(reg_dataset$race)
+
+# Creating dummy variables for 'race'
+reg_dataset <- dummyVars("~ race", data = reg_dataset) %>%
+             predict(newdata = reg_dataset) %>%
+             as.data.frame() %>%
+             bind_cols(reg_dataset, .)
+```
+
+```{r}
+# Splitting the data into training and testing sets
+set.seed(123) # for reproducibility
+trainIndex <- createDataPartition(reg_dataset$separation_indicator, p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+trainData <- reg_dataset[trainIndex, ]
+testData <- reg_dataset[-trainIndex, ]
+```
+
+```{r}
+# Build the model - logistic regression
+model3 <- glm(separation_indicator ~ race.Asian + race.black + race.Hispanic + race.other + tenure_days + new_applications + abn_applications + pen_applications + iss_applications + art_unit_hc + Asian_in_art_unit + Black_in_art_unit + White_in_art_unit + Other_in_art_unit, family = binomial, data = trainData)
+
+# Summary of the model
+summary(model3)
+
+# Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred. Investigate later
+```
+```{r}
+# trying without issued applications variable. looks like no difference
+
+# Build the model - logistic regression
+model4 <- glm(separation_indicator ~ race.Asian + race.black + race.Hispanic + race.other + tenure_days + new_applications + abn_applications + pen_applications + art_unit_hc + Asian_in_art_unit + Black_in_art_unit + White_in_art_unit + Other_in_art_unit, family = binomial, data = trainData)
+
+# Summary of the model
+summary(model4)
+```
+
+```{r}
+# vif(model3)
+# Got this erorr. To investigate later
+# Error in vif.default(model3) : 
+#   there are aliased coefficients in the model
+```
+
+```{r}
+# Convert predicted probabilities to class labels
+# Assuming your model predicts probabilities for class '1'
+predicted_probabilities <- predict(model3, testData, type = "response")
+predicted_labels <- ifelse(predicted_probabilities > 0.5, 1, 0)
+
+# Convert to factor if not already
+# Ensure '1' is the first level in the factor
+predicted_labels <- factor(predicted_labels, levels = c(1, 0))
+actual_labels <- factor(testData$separation_indicator, levels = c(1, 0))
+
+# Evaluate the model using confusion matrix
+confusionMatrix(predicted_labels, actual_labels)
+
+```
+## ROC Curve and AUC
+```{r}
+library(pROC)
+
+# Create the ROC curve
+roc_curve <- roc(testData$separation_indicator, predicted_probabilities)
+
+# Plot the ROC curve
+plot(roc_curve, main = "ROC Curve", col = "blue")
+abline(a = 0, b = 1, lty = 2, col = "red")  # Adds a diagonal reference line
+
+# Adding AUC (Area Under Curve) to the plot
+auc(roc_curve) # area under the curve was 0.8976. Probably overfitted
+
+```
+# Text 

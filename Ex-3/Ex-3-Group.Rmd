@@ -15,7 +15,7 @@ library(pROC)
 library(caret)
 ```
 
-Prediction
+### Prediction using full dataset - not yet providing consideration for being panel data
 
 ```{r}
 
@@ -39,7 +39,6 @@ splitIndex <- createDataPartition(panel_df$separation_indicator, p = .70, list =
 train_data <- panel_df[splitIndex,]
 test_data <- panel_df[-splitIndex,]
 ```
-
 
 ```{r}
 View(panel_df)
@@ -77,12 +76,9 @@ actual_labels <- factor(test_data$separation_indicator, levels = c(1, 0))
 confusionMatrix(predicted_labels, actual_labels)
 ```
 
-
-
 ```{r}
 # Load the ROCR library
 library(ROCR)
-
 ```
 
 ```{r}
@@ -114,3 +110,13 @@ plot(panel_df_performance, main = "ROC Curve", colorize = TRUE)
 
 ```
 
+```{r}
+# Calculating the AUC
+panel_df_auc = performance(panel_df_prediction, measure = "auc")
+
+# Extract the AUC value
+auc_value = panel_df_auc@y.values[[1]]
+
+# Printing the AUC
+print(paste("AUC:", auc_value))
+```

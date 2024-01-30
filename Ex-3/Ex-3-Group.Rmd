@@ -15,7 +15,7 @@ library(pROC)
 library(caret)
 ```
 
-### Prediction using full dataset - not yet providing consideration for being panel data
+### Prediction of seperation using full dataset - not yet providing consideration for being panel data
 
 ```{r}
 
@@ -38,10 +38,6 @@ set.seed(123) # for reproducibility & ensuring representativeness of classes in 
 splitIndex <- createDataPartition(panel_df$separation_indicator, p = .70, list = FALSE, times = 1)
 train_data <- panel_df[splitIndex,]
 test_data <- panel_df[-splitIndex,]
-```
-
-```{r}
-View(panel_df)
 ```
 
 ```{r}
@@ -119,4 +115,113 @@ auc_value = panel_df_auc@y.values[[1]]
 
 # Printing the AUC
 print(paste("AUC:", auc_value))
+```
+
+### Prediction of seperation using collapsed dataset, one entry per examiner
+
+```{r}
+# Ordering the data frame by examiner_id, quarter (descending), and separation_indicator
+# This ensures that for each examiner_id, the highest quarter comes first
+# and within the same quarter, records with separation_indicator = 1 come first in case of accidental duplicates
+ordered_panel_df <- panel_df %>%
+  arrange(examiner_id, desc(quarter), desc(separation_indicator))
+
+# Selecting the first record for each examiner_id
+collapsed_df <- ordered_panel_df %>%
+  group_by(examiner_id) %>%
+  slice(1) %>%
+  ungroup()
+```
+
+```{r}
+#Splitting the Data
+set.seed(123) # for reproducibility & ensuring representativeness of classes in both sets
+splitIndex <- createDataPartition(collapsed_df$separation_indicator, p = .70, list = FALSE, times = 1)
+train_data2 <- collapsed_df[splitIndex,]
+test_data2 <- collapsed_df[-splitIndex,]
+```
+
+```{r}
+
+model2 <- glm(separation_indicator ~ new_applications + ISSUED_applications + total_abn_applications +
+             total_PEN_applications + tenure_days +  Asian_in_art_unit +
+             Black_in_art_unit + Other_in_art_unit + White_in_art_unit +
+             au_move_indicator + race.Asian + race.black + race.Hispanic + race.other,
+             data = train_data2, family = "binomial")
+
+summary(model2)
+```
+
+
+```{r}
+#Evaluating the Model & Creating Confusion Matrix
+
+# Convert predicted probabilities to class labels
+# Assuming your model predicts probabilities for class '1'
+predicted_probabilities2 <- predict(model2, test_data2, type = "response")
+predicted_labels2 <- ifelse(predicted_probabilities2 > 0.5, 1, 0)
+
+
+# Convert to factor if not already
+# Ensure '1' is the first level in the factor
+predicted_labels2 <- factor(predicted_labels2, levels = c(1, 0))
+actual_labels2 <- factor(test_data2$separation_indicator, levels = c(1, 0))
+
+# Evaluate the model using confusion matrix
+confusionMatrix(predicted_labels2, actual_labels2)
+```
+
+```{r}
+
+# Predicting on the test set with probabilities
+collapsed_df_pHat = predict(model2, test_data2, type = 'response')
+
+# Check for NAs in predictions and handle them
+if (any(is.na(collapsed_df_pHat))) {
+  # Handle NAs - Exclude NAs
+  valid_indices <- which(!is.na(collapsed_df_pHat))
+  collapsed_df_pHat <- collapsed_df_pHat[valid_indices]
+  actual_outcomes <- test_data2$separation_indicator[valid_indices]
+} else {
+  actual_outcomes <- test_data2$separation_indicator
+}
+
+# Ensure that predictions and actual outcomes are in the correct format
+collapsed_df_pHat <- as.numeric(collapsed_df_pHat)
+actual_outcomes <- as.numeric(actual_outcomes)
+
+# Creating a prediction object with actual outcomes and predicted probabilities
+collapsed_df_prediction = prediction(collapsed_df_pHat, actual_outcomes)
+
+# Evaluating performance for tpr and fpr
+collapsed_df_performance = performance(collapsed_df_prediction, "tpr", "fpr")
+
+# Plotting the ROC Curve
+plot(collapsed_df_performance, main = "ROC Curve", colorize = TRUE)
+
+```
+
+```{r}
+# Calculating the AUC
+collapsed_df_auc = performance(collapsed_df_prediction, measure = "auc")
+
+# Extract the AUC value
+auc_value = collapsed_df_auc@y.values[[1]]
+
+# Printing the AUC
+print(paste("AUC:", auc_value))
+```
+
+```{r}
+library(psych)
+summary_stats_numeric <- describe(collapsed_df)
+ 
+summary_stats_categorical <- describeBy(
+  collapsed_df,
+  group = collapsed_df$factor_variable
+)
+ 
+summary_stats_numeric
+ 
+summary_stats_categorical
 ```

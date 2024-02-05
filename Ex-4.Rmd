@@ -1,0 +1,46 @@
+---
+title: "Exercise 4"
+output: github_document
+---
+
+## Summary of Discrimination as A Self-Fulfilling Prophecy: Evidence From French Grocery Stores
+
+This study found that minority workers perform more poorly when scheduled to work with more biased managers. By contrast – minority and majority workers achieve equal performance on average, and minority workers actually outperform when scheduled to work with unbiased managers. The apparent transmission mechanism for this reduced performance is that biased managers interact less with minority workers, resulting in the workers exerting less effort.
+
+## Comments on Research Design of Discrimination Study
+
+#### Difference-in-Difference
+
+This study uses the difference-in-difference methodology to establish a causal link between working under a biased manager and decreased performance for minority workers. The treatment in this case was working under a biased manager. Because the causal effect they’re trying to establish involves the interaction of two factors, being a minority worker and working under a biased manager, the differences being observed are at two levels. There is the comparison of performance by minority workers when working with a biased manager (treatment group) and with an unbiased manager (control group). At the same time, there is a comparison of the performance of minority workers vs nonminority workers working under biased managers. Establishing this second difference is what makes this a causal study about the effect of biased managers on minority workers and not just about the effect of biased managers on overall employee performance.
+
+#### Quasi-random Assignment
+
+The study also leverages the pre-existing quasi-random assignment of workers to shifts, facilitated through an algorithmic scheduling process that does not take into account workers' preferences. This mechanism helps manage selection bias threats and better establish that the observed effects stem from the treatment condition—working under a biased manager—rather than from pre-existing differences among the workers.
+
+#### Instrumental Variables & Reduced Form Regression
+
+For the regressions in which the dependent variables relate to on-duty performance, there exist in some cases a difference between the scheduled manager compared to the actual manager that day. The bias of the scheduled manager is utilized as an instrument for the bias of the manager who is actually present during a shift. Thus, these regressions end up being reduced form ones.
+
+#### Statistical vs Material Significance
+
+While the study finds a statistically significant reduction in minutes worked over scheduled minutes by minority workers under biased managers, this difference amounted to approx. 3.3 minutes. Such a difference, especially when it has to do with overtime as opposed to arriving late or leaving early, is unlikely to spur any further action. At least, not on its own. Though this was not from the video, it connects to earlier class discussions.
+
+## Comments on Threats to Inference
+
+At my level of knowledge, it appears the authors do quite a thorough job at addressing potential threats to inference in the study. A few notable examples include:
+
+-   Validating assumptions that minority and majority cashiers work with more and less biased managers under similar conditions.
+
+-   Testing that the assumption of the low-interaction transmission mechanism which is based on manager action / in-action was not confounded by self-stereotyping which would be initiated by the employee themselves
+
+-   Ruling out systematic differences in types of shifts worked by minority vs nonminority workers. -Validating that the association in performance changes were from manager bias and not other characteristics like seniority
+
+-   Using varying commonly accepted definitions of being a minority to define the minority group and observing similar results.
+
+I did note that Table I helps establish that the regression sample was comparable to that of all included stores, but I do not recall seeing a table that establishes that the collection of observations in the minority worker + biased manager category and the collection of observations for the minority worker + unbiased manager category had no statistically significant differences. So, there is potentially a selection threat to internal validity there.
+
+## Causal Hypothesis to Test for Patent Examiners
+
+A potential hypothesis to explore the reasons behind patent examiners leaving organization could focus on the ratio of pending to processed applications (issued or abandoned). This productivity ratio could serve as a proxy for a self-concept of stagnancy vs a self-concept of impact.
+
+The hypothesis needs refinement, such as determining a meaningful threshold for this ratio or establishing a contextualizing benchmark (e.g. to consider maturation effects from tenure). But this came to mind given the high influence scores of the issued, pending, and abandoned application variables on the exercise 3 regressions across different teams.

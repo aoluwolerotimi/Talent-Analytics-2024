@@ -1,0 +1,312 @@
+---
+---
+---
+
+# Final Project
+
+```{r}
+library(arrow)
+library(tidyverse)
+library(lubridate)
+
+data_path <- "/Users/aoluwolerotimi/Datasets/" # AO Changed file path
+applications <- read_feather(paste0(data_path,"app_data_starter_coded.feather"))
+```
+
+## clean the columns
+
+```{r}
+columns_with_x_suffix <- grep("\\.x$", names(applications), value = TRUE)
+
+names(applications)[names(applications) %in% columns_with_x_suffix] <- sub("\\.x$", '', columns_with_x_suffix)
+
+
+applications <- applications %>% select(-ends_with(".y"))
+```
+
+## Feature Engineering
+
+```{r}
+#quarter 
+applications <- applications %>%
+  mutate(
+    quarter = paste0(year(filing_date), "/", quarter(filing_date)),
+  )
+
+# Aggregate applications by quarter and examiner
+applications <- applications %>%
+  group_by(quarter, examiner_id) %>%
+  mutate(new_applications = n_distinct(application_number)) %>%
+  ungroup()
+
+applications <- applications %>%
+  group_by(quarter, examiner_id) %>%
+  mutate(ISSUED_applications = sum(disposal_type == "ISS" & !duplicated(application_number)))
+
+applications <- applications %>%
+  group_by(quarter, examiner_id) %>%
+  mutate(abn_applications = sum(disposal_type == "ABN" & !duplicated(application_number)))
+
+applications <- applications %>%
+  group_by(quarter, examiner_id) %>%
+  mutate(PEN_applications = sum(disposal_type == "PEND" & !duplicated(application_number)))
+
+applications <- applications %>%
+  group_by(quarter,examiner_art_unit) %>%
+  mutate(examiner_art_unit_num =  n_distinct(examiner_id))%>%
+  ungroup()
+```
+
+```{r}
+max_quarter <- "2017/1"
+
+applications <- applications %>%
+        filter(quarter <= max_quarter)
+
+# separation_indicator
+applications <- applications %>%
+  group_by(examiner_id) %>%
+  mutate(max_quarter_examiner = max(quarter)) %>%
+  ungroup() %>%
+  mutate(separation_indicator = if_else(max_quarter_examiner < max_quarter, 1, 0))
+
+# to delete lastest_date that is beyond the max_quarter
+#max_date <- "2017-03-31"
+#applications <- applications %>%
+#  filter(latest_date <= as.Date(max_date))
+```
+
+```{r}
+#au_move_indicator
+applications <- applications %>%
+  group_by(examiner_id) %>%
+  mutate(au_move_indicator = if_else(examiner_art_unit != lag(examiner_art_unit), 1, 0)) %>%
+  ungroup()
+
+applications <- applications %>%
+  mutate(au_move_indicator = if_else(is.na(au_move_indicator), 0, au_move_indicator))
+
+#tc_move_indicator
+applications <- applications %>%
+  group_by(examiner_id) %>%
+  mutate(tc_move_indicator = if_else(tc != lag(tc), 1, 0)) %>%
+  ungroup()
+
+applications <- applications %>%
+  mutate(tc_move_indicator = if_else(is.na(tc_move_indicator), 0, tc_move_indicator))
+```
+
+```{r}
+# get the count of au_moves by quarter
+applications <- applications %>%
+  group_by(examiner_id, quarter) %>%
+  mutate(
+    au_moves = sum(au_move_indicator)
+  ) %>%
+  ungroup()
+
+#tc_moves by quarter
+applications <- applications %>%
+  group_by(examiner_id, quarter) %>%
+  mutate(
+    tc_moves = sum(tc_move_indicator)
+  ) %>%
+  ungroup()
+
+#distinct uspc_class and uspc_subclass by quarter
+applications <- applications %>%
+  group_by(examiner_id, quarter) %>%
+  mutate(
+    num_classes = n_distinct(uspc_class),
+    num_subclasses = n_distinct(uspc_subclass)
+  ) %>%
+  ungroup()
+```
+
+```{r}
+# get the process time
+applications <- applications %>%
+  mutate(
+    patent_issue_date = as.Date(patent_issue_date),
+    abandon_date = as.Date(abandon_date),
+    processing_time = case_when(
+      disposal_type == "ISS" ~ as.numeric(patent_issue_date - filing_date, units = "days"),
+      disposal_type == "ABN" ~ as.numeric(abandon_date - filing_date, units = "days"),
+      TRUE ~ 0
+    )
+  )
+
+applications <- applications %>%
+  mutate(
+    iss_time = ifelse(disposal_type == "ISS", processing_time, NA),
+    abn_time = ifelse(disposal_type == "ABN", processing_time, NA)
+  )
+
+# Computing averages within the same dataframe
+applications <- applications %>%
+  group_by(examiner_id) %>%
+  mutate(
+    avg_processing = mean(processing_time, na.rm = TRUE),
+    avg_ISS_processing = mean(iss_time, na.rm = TRUE),
+    avg_ABN_processing = mean(abn_time, na.rm = TRUE)
+  ) %>%
+  ungroup()
+```
+
+## Covariates Cleaning
+
+```{r}
+columns_to_exclude <- c(
+  "examiner_art_unit", "examiner_art_unit_num",
+  "women_in_art_unit"
+) # Due to a high number of missing vlaue in the gender value, the quality of the women_in_art_unit is poor, thus excluded
+
+df <- applications[, !(names(applications) %in% columns_to_exclude)]
+colSums(is.na(df))
+```
+
+```{r}
+#drop the na examiner_id rows
+df <- subset(df, !is.na(examiner_id))
+
+#aggregate to quarter
+quarter_df <- df %>%
+  group_by(examiner_id) %>%
+  distinct(quarter, .keep_all = TRUE) %>%
+  select(examiner_id, quarter, latest_date, separation_indicator, ISSUED_applications, PEN_applications, abn_applications, gender, race, tenure_days, au_moves, tc_moves, num_classes, num_subclasses, avg_processing, avg_ISS_processing, avg_ABN_processing) %>%
+  arrange(examiner_id, quarter)
+```
+
+```{r}
+#collapse to individual observation
+collapsed_df <- quarter_df %>%
+  group_by(examiner_id) %>%
+  summarize(
+    gender = first(gender),
+    race = first(race),
+    tenure_days = first(tenure_days),
+    ISSUED_applications = sum(ISSUED_applications),
+    abandoned_applications = sum(abn_applications),
+    au_moves = sum(au_moves),
+    tc_moves = sum(tc_moves),
+    PEN_applications = sum(PEN_applications) / n(),
+    separation_indicator = max(separation_indicator),
+    num_classes = sum(num_classes),
+    num_subclasses = sum(num_subclasses),
+    avg_processing = first(avg_processing),
+    avg_ISS_processing = first(avg_ISS_processing),
+    avg_ABN_processing = first(avg_ABN_processing)
+  )
+
+#append NA with 'unknown'
+collapsed_df <- collapsed_df %>%
+  mutate(gender = ifelse(is.na(gender), "unknown", gender))
+```
+
+```{r}
+# saving the feather file
+# write_feather(collapsed_df, "/Users/aoluwolerotimi/Datasets/collapsed_df_final.feather")
+```
+
+```{r}
+colSums(is.na(collapsed_df))
+```
+
+```{r}
+#Fill NA to 0 
+collapsed_df <- collapsed_df %>%
+  mutate_all(~ifelse(is.na(.), 0, .))
+```
+
+```{r}
+summary(collapsed_df)
+```
+
+## Model Building
+
+```{r}
+collapsed_df$separation_indicator <- factor(make.names(as.character(collapsed_df$separation_indicator)))
+
+collapsed_df$gender <- as.factor(collapsed_df$gender)
+collapsed_df$race <- as.factor(collapsed_df$race)
+
+#Train Split
+library(caret)
+
+set.seed(123) 
+splitIndex <- createDataPartition(collapsed_df$separation_indicator, p = .75, list = FALSE)
+train_data <- collapsed_df[splitIndex,]
+test_data <- collapsed_df[-splitIndex,]
+
+indexes <- sample(1:nrow(collapsed_df), size = 0.75 * nrow(collapsed_df))
+train_data_lm <- collapsed_df[indexes, ]
+test_data_lm <- collapsed_df[-indexes, ]
+```
+
+-   **What are the organizational and social factors associated with the length of patent application prosecution?**
+
+    Hypothesis - The impact of tenure on outcomes like ISSUED applications, abandoned applications, or average processing times might differ between genders/races
+
+```{r}
+train_control <- trainControl(method = "cv", number = 10)
+
+#avg_processing as outcome
+model <- train(avg_processing ~ tenure_days + num_classes + num_subclasses +
+               ISSUED_applications + au_moves + tc_moves + gender + race +
+               gender * tenure_days + race * tenure_days,
+               data = train_data_lm,
+               method = "lm", 
+               trControl = train_control)
+
+#avg_ISS_processing as outcome
+model2 <- train(avg_ISS_processing ~ tenure_days + num_classes + num_subclasses+
+               ISSUED_applications + au_moves + tc_moves + gender + race +
+               gender * tenure_days + race * tenure_days,
+               data = train_data_lm,
+               method = "lm", 
+               trControl = train_control)
+
+#avg_ABN_processing as outcome
+model3 <- train(avg_ABN_processing ~ tenure_days + num_classes + num_subclasses+
+               ISSUED_applications + au_moves + tc_moves + gender + race +
+               gender * tenure_days + race * tenure_days,
+               data = train_data_lm,
+               method = "lm", 
+               trControl = train_control)
+```
+
+```{r}
+summary(model)
+```
+
+```{r}
+summary(model2)
+```
+
+```{r}
+summary(model3)
+```
+
+Insights :
+
+-   **What are the organizational and social factors associated with examiner attrition**
+
+```{r}
+train_control <- trainControl(method = "cv", number = 10, classProbs = TRUE, summaryFunction = twoClassSummary)
+
+attrition_model <- train(separation_indicator ~ tenure_days + ISSUED_applications + abandoned_applications + avg_processing +
+                         avg_ISS_processing + avg_ABN_processing + au_moves + tc_moves +
+                         gender + race + gender * tenure_days + race * tenure_days,
+                         data = train_data,
+                         method = "glm",
+                         family = "binomial",
+                         trControl = train_control,
+                         preProcess = "scale", 
+                         metric = "ROC") 
+```
+
+```{r}
+summary(attrition_model)
+```
+
+insights:
